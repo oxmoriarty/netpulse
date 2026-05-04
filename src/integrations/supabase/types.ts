@@ -14,7 +14,104 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      area_scores: {
+        Row: {
+          area_id: string
+          avg_download: number
+          avg_latency: number
+          avg_upload: number
+          isp_breakdown: Json
+          lat: number
+          lng: number
+          name: string
+          netpulse_score: number
+          prev_score: number
+          sample_count: number
+          updated_at: string
+        }
+        Insert: {
+          area_id: string
+          avg_download?: number
+          avg_latency?: number
+          avg_upload?: number
+          isp_breakdown?: Json
+          lat: number
+          lng: number
+          name: string
+          netpulse_score?: number
+          prev_score?: number
+          sample_count?: number
+          updated_at?: string
+        }
+        Update: {
+          area_id?: string
+          avg_download?: number
+          avg_latency?: number
+          avg_upload?: number
+          isp_breakdown?: Json
+          lat?: number
+          lng?: number
+          name?: string
+          netpulse_score?: number
+          prev_score?: number
+          sample_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      submissions: {
+        Row: {
+          area_id: string
+          created_at: string
+          download_mbps: number
+          genlayer_tx_hash: string | null
+          id: string
+          isp: string
+          lat: number
+          latency_ms: number
+          lng: number
+          score: number
+          upload_mbps: number
+          wallet_address: string
+        }
+        Insert: {
+          area_id: string
+          created_at?: string
+          download_mbps: number
+          genlayer_tx_hash?: string | null
+          id?: string
+          isp: string
+          lat: number
+          latency_ms: number
+          lng: number
+          score: number
+          upload_mbps: number
+          wallet_address: string
+        }
+        Update: {
+          area_id?: string
+          created_at?: string
+          download_mbps?: number
+          genlayer_tx_hash?: string | null
+          id?: string
+          isp?: string
+          lat?: number
+          latency_ms?: number
+          lng?: number
+          score?: number
+          upload_mbps?: number
+          wallet_address?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submissions_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "area_scores"
+            referencedColumns: ["area_id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
