@@ -1,6 +1,8 @@
-import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { AppLayout } from "@/components/Layout";
 
 import appCss from "../styles.css?url";
+import leafletCss from "leaflet/dist/leaflet.css?url";
 
 function NotFoundComponent() {
   return (
@@ -29,20 +31,22 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "NetPulse — Crowdsourced Network Quality Map" },
+      {
+        name: "description",
+        content:
+          "NetPulse is a DePIN network-quality map. Submit a speed test, get GenLayer-validated consensus scores per area.",
+      },
+      { name: "author", content: "NetPulse" },
+      { property: "og:title", content: "NetPulse — Crowdsourced Network Quality" },
+      { property: "og:description", content: "DePIN speed-test map validated by GenLayer Intelligent Contracts." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:site", content: "@NetPulse" },
     ],
     links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
+      { rel: "stylesheet", href: appCss },
+      { rel: "stylesheet", href: leafletCss },
     ],
   }),
   shellComponent: RootShell,
@@ -65,5 +69,5 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  return <Outlet />;
+  return <AppLayout />;
 }
