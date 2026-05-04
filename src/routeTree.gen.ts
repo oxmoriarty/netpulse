@@ -13,6 +13,7 @@ import { Route as SubmitRouteImport } from './routes/submit'
 import { Route as MapRouteImport } from './routes/map'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AreaIndexRouteImport } from './routes/area.index'
+import { Route as AreaIdRouteImport } from './routes/area.$id'
 
 const SubmitRoute = SubmitRouteImport.update({
   id: '/submit',
@@ -34,17 +35,24 @@ const AreaIndexRoute = AreaIndexRouteImport.update({
   path: '/area/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AreaIdRoute = AreaIdRouteImport.update({
+  id: '/area/$id',
+  path: '/area/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/map': typeof MapRoute
   '/submit': typeof SubmitRoute
+  '/area/$id': typeof AreaIdRoute
   '/area/': typeof AreaIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/map': typeof MapRoute
   '/submit': typeof SubmitRoute
+  '/area/$id': typeof AreaIdRoute
   '/area': typeof AreaIndexRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,22 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/map': typeof MapRoute
   '/submit': typeof SubmitRoute
+  '/area/$id': typeof AreaIdRoute
   '/area/': typeof AreaIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/map' | '/submit' | '/area/'
+  fullPaths: '/' | '/map' | '/submit' | '/area/$id' | '/area/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/map' | '/submit' | '/area'
-  id: '__root__' | '/' | '/map' | '/submit' | '/area/'
+  to: '/' | '/map' | '/submit' | '/area/$id' | '/area'
+  id: '__root__' | '/' | '/map' | '/submit' | '/area/$id' | '/area/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   MapRoute: typeof MapRoute
   SubmitRoute: typeof SubmitRoute
+  AreaIdRoute: typeof AreaIdRoute
   AreaIndexRoute: typeof AreaIndexRoute
 }
 
@@ -99,6 +109,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AreaIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/area/$id': {
+      id: '/area/$id'
+      path: '/area/$id'
+      fullPath: '/area/$id'
+      preLoaderRoute: typeof AreaIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -106,6 +123,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   MapRoute: MapRoute,
   SubmitRoute: SubmitRoute,
+  AreaIdRoute: AreaIdRoute,
   AreaIndexRoute: AreaIndexRoute,
 }
 export const routeTree = rootRouteImport
