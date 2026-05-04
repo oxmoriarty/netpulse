@@ -14,6 +14,7 @@ import { Route as MapRouteImport } from './routes/map'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AreaIndexRouteImport } from './routes/area.index'
 import { Route as AreaIdRouteImport } from './routes/area.$id'
+import { Route as ApiGetMapDataRouteImport } from './routes/api/get-map-data'
 
 const SubmitRoute = SubmitRouteImport.update({
   id: '/submit',
@@ -40,11 +41,17 @@ const AreaIdRoute = AreaIdRouteImport.update({
   path: '/area/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGetMapDataRoute = ApiGetMapDataRouteImport.update({
+  id: '/api/get-map-data',
+  path: '/api/get-map-data',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/map': typeof MapRoute
   '/submit': typeof SubmitRoute
+  '/api/get-map-data': typeof ApiGetMapDataRoute
   '/area/$id': typeof AreaIdRoute
   '/area/': typeof AreaIndexRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/map': typeof MapRoute
   '/submit': typeof SubmitRoute
+  '/api/get-map-data': typeof ApiGetMapDataRoute
   '/area/$id': typeof AreaIdRoute
   '/area': typeof AreaIndexRoute
 }
@@ -60,21 +68,36 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/map': typeof MapRoute
   '/submit': typeof SubmitRoute
+  '/api/get-map-data': typeof ApiGetMapDataRoute
   '/area/$id': typeof AreaIdRoute
   '/area/': typeof AreaIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/map' | '/submit' | '/area/$id' | '/area/'
+  fullPaths:
+    | '/'
+    | '/map'
+    | '/submit'
+    | '/api/get-map-data'
+    | '/area/$id'
+    | '/area/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/map' | '/submit' | '/area/$id' | '/area'
-  id: '__root__' | '/' | '/map' | '/submit' | '/area/$id' | '/area/'
+  to: '/' | '/map' | '/submit' | '/api/get-map-data' | '/area/$id' | '/area'
+  id:
+    | '__root__'
+    | '/'
+    | '/map'
+    | '/submit'
+    | '/api/get-map-data'
+    | '/area/$id'
+    | '/area/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   MapRoute: typeof MapRoute
   SubmitRoute: typeof SubmitRoute
+  ApiGetMapDataRoute: typeof ApiGetMapDataRoute
   AreaIdRoute: typeof AreaIdRoute
   AreaIndexRoute: typeof AreaIndexRoute
 }
@@ -116,6 +139,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AreaIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/get-map-data': {
+      id: '/api/get-map-data'
+      path: '/api/get-map-data'
+      fullPath: '/api/get-map-data'
+      preLoaderRoute: typeof ApiGetMapDataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -123,6 +153,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   MapRoute: MapRoute,
   SubmitRoute: SubmitRoute,
+  ApiGetMapDataRoute: ApiGetMapDataRoute,
   AreaIdRoute: AreaIdRoute,
   AreaIndexRoute: AreaIndexRoute,
 }
