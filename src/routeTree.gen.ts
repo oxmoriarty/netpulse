@@ -9,9 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SubmitRouteImport } from './routes/submit'
 import { Route as MapRouteImport } from './routes/map'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AreaIndexRouteImport } from './routes/area.index'
 
+const SubmitRoute = SubmitRouteImport.update({
+  id: '/submit',
+  path: '/submit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MapRoute = MapRouteImport.update({
   id: '/map',
   path: '/map',
@@ -22,35 +29,55 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AreaIndexRoute = AreaIndexRouteImport.update({
+  id: '/area/',
+  path: '/area/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/map': typeof MapRoute
+  '/submit': typeof SubmitRoute
+  '/area/': typeof AreaIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/map': typeof MapRoute
+  '/submit': typeof SubmitRoute
+  '/area': typeof AreaIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/map': typeof MapRoute
+  '/submit': typeof SubmitRoute
+  '/area/': typeof AreaIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/map'
+  fullPaths: '/' | '/map' | '/submit' | '/area/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/map'
-  id: '__root__' | '/' | '/map'
+  to: '/' | '/map' | '/submit' | '/area'
+  id: '__root__' | '/' | '/map' | '/submit' | '/area/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   MapRoute: typeof MapRoute
+  SubmitRoute: typeof SubmitRoute
+  AreaIndexRoute: typeof AreaIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/submit': {
+      id: '/submit'
+      path: '/submit'
+      fullPath: '/submit'
+      preLoaderRoute: typeof SubmitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/map': {
       id: '/map'
       path: '/map'
@@ -65,13 +92,31 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/area/': {
+      id: '/area/'
+      path: '/area'
+      fullPath: '/area/'
+      preLoaderRoute: typeof AreaIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   MapRoute: MapRoute,
+  SubmitRoute: SubmitRoute,
+  AreaIndexRoute: AreaIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
