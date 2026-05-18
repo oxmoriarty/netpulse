@@ -18,26 +18,26 @@ function AreaIndex() {
   const sorted = [...areas].sort((a, b) => b.netpulse_score - a.netpulse_score);
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 md:py-10">
-      <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Area stats</h1>
+    <div className="mx-auto max-w-3xl px-4 py-6 md:py-10 animate-fade-in-up">
+      <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Area <span className="text-gradient">stats</span></h1>
       <p className="mt-1 text-sm text-muted-foreground">
         All measured zones, ranked by NetPulse Score.
       </p>
 
       {sorted.length === 0 ? (
-        <div className="mt-10 rounded-xl border bg-card p-8 text-center">
+        <div className="mt-10 rounded-2xl border border-border/60 bg-card p-8 text-center shadow-elegant">
           <p className="text-muted-foreground">
             No data yet. <Link to="/submit" className="text-primary underline-offset-2 hover:underline">Be the first to submit.</Link>
           </p>
         </div>
       ) : (
-        <ul className="mt-6 divide-y rounded-xl border bg-card">
-          {sorted.map((a) => (
-            <li key={a.area_id}>
+        <ul className="mt-6 divide-y divide-border/60 rounded-2xl border border-border/60 bg-card shadow-elegant overflow-hidden">
+          {sorted.map((a, i) => (
+            <li key={a.area_id} className="animate-fade-in-up" style={{ animationDelay: `${i * 0.04}s` }}>
               <Link
                 to="/area/$id"
                 params={{ id: a.area_id }}
-                className="flex items-center justify-between gap-3 p-4 transition-colors hover:bg-muted/50"
+                className="flex items-center justify-between gap-3 p-4 transition-all hover:bg-primary/5 hover:pl-5"
               >
                 <div className="min-w-0">
                   <div className="truncate font-medium">{a.name}</div>
