@@ -39,7 +39,7 @@ export function AppLayout() {
     <div className="flex min-h-dvh flex-col bg-background text-foreground">
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border/60 bg-background/70 px-4 py-3 backdrop-blur-xl">
         <Link to="/map" className="flex items-center gap-2 transition-opacity hover:opacity-80">
-          <img src={logo} alt="NetPulse" className="h-7 w-auto" />
+          <img src={logo} alt="NetPulse" className="h-10 md:h-12 w-auto drop-shadow-sm" />
         </Link>
         <nav className="hidden md:flex items-center gap-1">
           {NAV.map((n) => {
