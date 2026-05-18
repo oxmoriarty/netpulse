@@ -157,32 +157,37 @@ function SubmitPage() {
   }
 
   return (
-    <div className="mx-auto max-w-xl px-4 py-6 md:py-10">
+    <div className="mx-auto max-w-xl px-4 py-6 md:py-10 animate-fade-in-up">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Run a speed test</h1>
+        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Run a <span className="text-gradient">speed test</span></h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Test your connection or enter values manually. Each submission is validated by a
           GenLayer Intelligent Contract before it joins the map.
         </p>
       </div>
 
-      <div className="rounded-xl border bg-card p-5 shadow-sm">
+      <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-elegant">
         <Button
           type="button"
           onClick={runSpeedTest}
           disabled={phase === "running" || phase === "submitting" || phase === "validating"}
-          className="w-full gap-2"
+          className="w-full gap-2 bg-gradient-primary shadow-glow transition-transform hover:scale-[1.02]"
           size="lg"
         >
           {phase === "running" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Gauge className="h-4 w-4" />}
           {phase === "running" ? `Testing… ${progress}%` : "Start Speed Test"}
         </Button>
+        {phase === "running" && (
+          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div className="h-full bg-gradient-primary transition-all" style={{ width: `${progress}%` }} />
+          </div>
+        )}
         <p className="mt-2 text-center text-xs text-muted-foreground">
           Or enter values manually below.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-5 space-y-4 rounded-xl border bg-card p-5">
+      <form onSubmit={handleSubmit} className="mt-5 space-y-4 rounded-2xl border border-border/60 bg-card p-5 shadow-elegant">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="dl">Download (Mbps)</Label>
@@ -225,7 +230,7 @@ function SubmitPage() {
           </div>
         )}
 
-        <Button type="submit" size="lg" className="w-full gap-2" disabled={phase === "submitting" || phase === "validating"}>
+        <Button type="submit" size="lg" className="w-full gap-2 bg-gradient-primary shadow-glow transition-transform hover:scale-[1.02]" disabled={phase === "submitting" || phase === "validating"}>
           {(phase === "submitting" || phase === "validating") && <Loader2 className="h-4 w-4 animate-spin" />}
           {!address
             ? "Connect wallet to submit"
