@@ -31,7 +31,7 @@ function Landing() {
 
       <section className="mx-auto flex max-w-3xl flex-col items-center px-6 pt-16 pb-24 text-center">
         <span className="rounded-full border bg-card px-3 py-1 text-xs text-muted-foreground">
-          Live on GenLayer Bradbury Testnet · Chain ID 4221
+          Live on GenLayer Bradbury Testnet
         </span>
         <h1 className="mt-6 text-4xl font-bold tracking-tight md:text-6xl">
           Real network truth,<br />
