@@ -79,6 +79,24 @@ export const submitTest = createServerFn({ method: "POST" })
 
     const score = result.score ?? computeScore(data.download_mbps, data.upload_mbps, data.latency_ms);
 
+    // Ensure the area row exists BEFORE inserting the submission (FK constraint)
+    if (!existingArea) {
+      const { error: areaInitErr } = await supabaseAdmin.from("area_scores").insert({
+        area_id,
+        name: areaName(area_id),
+        lat: data.lat,
+        lng: data.lng,
+        netpulse_score: score,
+        prev_score: score,
+        sample_count: 0,
+        avg_download: 0,
+        avg_upload: 0,
+        avg_latency: 0,
+        isp_breakdown: {},
+      });
+      if (areaInitErr) throw new Error(areaInitErr.message);
+    }
+
     // Persist + recompute area aggregates
     const { error: insertErr } = await supabaseAdmin.from("submissions").insert({
       area_id,
