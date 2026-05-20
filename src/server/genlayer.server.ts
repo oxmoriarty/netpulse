@@ -1,11 +1,14 @@
 /**
- * Server-side GenLayer client (Bradbury testnet).
+ * Server-side GenLayer helpers (Bradbury testnet).
  *
- * In production, set GENLAYER_CONTRACT_ADDRESS to the deployed NetPulse
- * contract address. If unset, the server falls back to a local validator
- * that mirrors the contract's logic so the app remains usable in dev.
+ * The server never signs transactions — users sign with their own wallet.
+ * The server only:
+ *   1. Verifies a user-supplied tx hash on Bradbury and reads the
+ *      contract's return value to decide approval.
+ *   2. Falls back to a local validator (mirrors the contract) when no
+ *      GENLAYER_CONTRACT_ADDRESS is configured.
  */
-import { createClient, createAccount } from "genlayer-js";
+import { createClient } from "genlayer-js";
 import { testnetBradbury } from "genlayer-js/chains";
 import { computeScore } from "@/lib/netpulse";
 
@@ -68,60 +71,38 @@ export function getContractAddress(): string | null {
   return addr && addr.startsWith("0x") ? addr : null;
 }
 
-function getPrivateKey(): `0x${string}` | null {
-  const k = process.env.GENLAYER_PRIVATE_KEY;
-  if (!k) return null;
-  const v = k.startsWith("0x") ? k : `0x${k}`;
-  return v as `0x${string}`;
-}
-
 /**
- * Send the submission to the deployed Intelligent Contract.
- * Returns the tx hash + decoded approval. Throws on RPC errors so the
- * caller can fall back to local validation.
+ * Look up a user-signed transaction on Bradbury, confirm it called the
+ * NetPulse contract, and parse the contract's JSON return value.
  */
-export async function chainValidate(
-  input: SubmissionInput,
+export async function verifyTxOnChain(
+  txHash: string,
   contractAddress: string,
 ): Promise<ValidationResult> {
-  const pk = getPrivateKey();
-  if (!pk) {
-    throw new Error(
-      "GENLAYER_PRIVATE_KEY not set — the server needs a funded Bradbury account to sign contract calls.",
-    );
-  }
-  const account = createAccount(pk);
-  const client = createClient({
-    chain: testnetBradbury,
-    account,
-  });
+  const client: any = createClient({ chain: testnetBradbury });
 
-  const txHash = await client.writeContract({
-    address: contractAddress as `0x${string}`,
-    functionName: "submit_test",
-    args: [
-      input.wallet,
-      input.area_id,
-      input.download,
-      input.upload,
-      input.latency,
-      input.isp,
-      input.timestamp,
-    ],
-    value: 0n,
-  });
-
-  const receipt = await client.waitForTransactionReceipt({
-    hash: txHash as any,
+  const receipt: any = await client.waitForTransactionReceipt({
+    hash: txHash as `0x${string}`,
     retries: 100,
   });
 
-  // The contract returns a JSON string from submit_test.
+  // Make sure this tx actually targets our contract.
+  const to: string | undefined =
+    receipt?.to ??
+    receipt?.tx_data?.to ??
+    receipt?.transaction?.to ??
+    undefined;
+  if (to && to.toLowerCase() !== contractAddress.toLowerCase()) {
+    throw new Error(
+      `Tx ${txHash} targets ${to}, not the NetPulse contract ${contractAddress}`,
+    );
+  }
+
   let parsed: any = {};
   try {
     const raw =
-      (receipt as any)?.consensus_data?.leader_receipt?.[0]?.result ??
-      (receipt as any)?.data?.result ??
+      receipt?.consensus_data?.leader_receipt?.[0]?.result ??
+      receipt?.data?.result ??
       "{}";
     parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
   } catch {
@@ -134,6 +115,5 @@ export async function chainValidate(
     score: parsed.score,
     area_score: parsed.area_score,
     sample_count: parsed.sample_count,
-    tx_hash: String(txHash),
   };
 }
