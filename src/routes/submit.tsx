@@ -200,7 +200,7 @@ function SubmitPage() {
         <Button
           type="button"
           onClick={runSpeedTest}
-          disabled={phase === "running" || phase === "submitting" || phase === "validating"}
+          disabled={phase === "running" || phase === "signing" || phase === "validating" || phase === "saving"}
           className="w-full gap-2 bg-gradient-primary shadow-glow transition-transform hover:scale-[1.02]"
           size="lg"
         >
