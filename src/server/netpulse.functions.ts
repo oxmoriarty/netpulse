@@ -3,10 +3,10 @@ import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { areaIdFor, areaName, computeScore, ISPS } from "@/lib/netpulse";
 import {
-  chainValidate,
-  getContractAddress,
   localValidate,
   type SubmissionInput,
+  verifyTxOnChain,
+  getContractAddress,
 } from "./genlayer.server";
 
 const SubmitSchema = z.object({
@@ -17,6 +17,8 @@ const SubmitSchema = z.object({
   isp: z.enum(ISPS),
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
+  // Optional — if present, server verifies the on-chain receipt.
+  tx_hash: z.string().regex(/^0x[a-fA-F0-9]+$/).optional(),
 });
 
 export const submitTest = createServerFn({ method: "POST" })
@@ -25,7 +27,6 @@ export const submitTest = createServerFn({ method: "POST" })
     const timestamp = Math.floor(Date.now() / 1000);
     const area_id = areaIdFor(data.lat, data.lng);
 
-    // Pull recent history for spam check + area average for outlier check
     const [{ data: recent }, { data: existingArea }] = await Promise.all([
       supabaseAdmin
         .from("submissions")
@@ -55,19 +56,30 @@ export const submitTest = createServerFn({ method: "POST" })
     };
 
     const contractAddress = getContractAddress();
-    let result;
+    let result: {
+      approved: boolean;
+      reason?: string;
+      score?: number;
+      area_score?: number;
+      sample_count?: number;
+      tx_hash?: string | null;
+    };
     let usedChain = false;
     let chainError: string | null = null;
-    try {
-      if (contractAddress) {
-        result = await chainValidate(input, contractAddress);
+
+    if (data.tx_hash && contractAddress) {
+      // Verify the user-signed transaction against the deployed contract.
+      try {
+        const onChain = await verifyTxOnChain(data.tx_hash, contractAddress);
+        result = { ...onChain, tx_hash: data.tx_hash };
         usedChain = true;
-      } else {
+      } catch (err) {
+        chainError = err instanceof Error ? err.message : String(err);
+        console.error("On-chain verification failed:", chainError);
         result = await localValidate(input, history, areaAvg, areaCount);
       }
-    } catch (err) {
-      chainError = err instanceof Error ? err.message : String(err);
-      console.error("GenLayer call failed, falling back to local validation:", chainError);
+    } else {
+      // No tx — use the local validator (dev fallback only).
       result = await localValidate(input, history, areaAvg, areaCount);
     }
 
@@ -78,12 +90,13 @@ export const submitTest = createServerFn({ method: "POST" })
         used_chain: usedChain,
         contract_address: contractAddress,
         chain_error: chainError,
+        tx_hash: result.tx_hash ?? null,
       };
     }
 
-    const score = result.score ?? computeScore(data.download_mbps, data.upload_mbps, data.latency_ms);
+    const score =
+      result.score ?? computeScore(data.download_mbps, data.upload_mbps, data.latency_ms);
 
-    // Ensure the area row exists BEFORE inserting the submission (FK constraint)
     if (!existingArea) {
       const { error: areaInitErr } = await supabaseAdmin.from("area_scores").insert({
         area_id,
@@ -101,7 +114,6 @@ export const submitTest = createServerFn({ method: "POST" })
       if (areaInitErr) throw new Error(areaInitErr.message);
     }
 
-    // Persist + recompute area aggregates
     const { error: insertErr } = await supabaseAdmin.from("submissions").insert({
       area_id,
       wallet_address: data.wallet,
@@ -116,7 +128,6 @@ export const submitTest = createServerFn({ method: "POST" })
     });
     if (insertErr) throw new Error(insertErr.message);
 
-    // Recompute aggregates from all submissions in this area
     const { data: all } = await supabaseAdmin
       .from("submissions")
       .select("download_mbps, upload_mbps, latency_ms, isp, score")
@@ -198,3 +209,7 @@ export const getAreaScore = createServerFn({ method: "GET" })
       .limit(20);
     return { area, history: history ?? [] };
   });
+
+export const getContractAddressFn = createServerFn({ method: "GET" }).handler(async () => {
+  return { address: getContractAddress() };
+});
