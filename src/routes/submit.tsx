@@ -273,7 +273,12 @@ function SubmitPage() {
                 </div>
               ) : (
                 <div className="text-xs text-muted-foreground">
-                  Local validator used (set <code>GENLAYER_CONTRACT_ADDRESS</code> to enable on-chain).
+                  Local validator used.
+                  {result.chain_error ? (
+                    <> On-chain call failed: <span className="font-mono">{result.chain_error}</span></>
+                  ) : !result.contract_address ? (
+                    <> Set <code>GENLAYER_CONTRACT_ADDRESS</code> to enable on-chain.</>
+                  ) : null}
                 </div>
               )}
               <div className="flex gap-2 pt-2">

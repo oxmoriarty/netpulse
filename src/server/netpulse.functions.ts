@@ -57,6 +57,7 @@ export const submitTest = createServerFn({ method: "POST" })
     const contractAddress = getContractAddress();
     let result;
     let usedChain = false;
+    let chainError: string | null = null;
     try {
       if (contractAddress) {
         result = await chainValidate(input, contractAddress);
@@ -65,7 +66,8 @@ export const submitTest = createServerFn({ method: "POST" })
         result = await localValidate(input, history, areaAvg, areaCount);
       }
     } catch (err) {
-      console.error("GenLayer call failed, falling back to local validation", err);
+      chainError = err instanceof Error ? err.message : String(err);
+      console.error("GenLayer call failed, falling back to local validation:", chainError);
       result = await localValidate(input, history, areaAvg, areaCount);
     }
 
@@ -74,6 +76,8 @@ export const submitTest = createServerFn({ method: "POST" })
         approved: false,
         reason: result.reason ?? "rejected",
         used_chain: usedChain,
+        contract_address: contractAddress,
+        chain_error: chainError,
       };
     }
 
@@ -160,6 +164,8 @@ export const submitTest = createServerFn({ method: "POST" })
       area_score: netpulse_score,
       tx_hash: result.tx_hash ?? null,
       used_chain: usedChain,
+      contract_address: contractAddress,
+      chain_error: chainError,
     };
   });
 

@@ -68,6 +68,13 @@ export function getContractAddress(): string | null {
   return addr && addr.startsWith("0x") ? addr : null;
 }
 
+function getPrivateKey(): `0x${string}` | null {
+  const k = process.env.GENLAYER_PRIVATE_KEY;
+  if (!k) return null;
+  const v = k.startsWith("0x") ? k : `0x${k}`;
+  return v as `0x${string}`;
+}
+
 /**
  * Send the submission to the deployed Intelligent Contract.
  * Returns the tx hash + decoded approval. Throws on RPC errors so the
@@ -77,7 +84,13 @@ export async function chainValidate(
   input: SubmissionInput,
   contractAddress: string,
 ): Promise<ValidationResult> {
-  const account = createAccount();
+  const pk = getPrivateKey();
+  if (!pk) {
+    throw new Error(
+      "GENLAYER_PRIVATE_KEY not set — the server needs a funded Bradbury account to sign contract calls.",
+    );
+  }
+  const account = createAccount(pk);
   const client = createClient({
     chain: testnetBradbury,
     account,
