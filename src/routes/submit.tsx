@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useWallet } from "@/store/wallet";
 import { ISPS } from "@/lib/netpulse";
-import { submitTest } from "@/server/netpulse.functions";
+import { submitTest, getContractAddressFn } from "@/server/netpulse.functions";
+import { submitOnChain } from "@/lib/genlayer.client";
+import { areaIdFor } from "@/lib/netpulse";
 import { useServerFn } from "@tanstack/react-start";
 
 export const Route = createFileRoute("/submit")({
@@ -19,12 +21,21 @@ export const Route = createFileRoute("/submit")({
   component: SubmitPage,
 });
 
-type Phase = "idle" | "running" | "ready" | "submitting" | "validating" | "done" | "error";
+type Phase =
+  | "idle"
+  | "running"
+  | "ready"
+  | "signing"
+  | "validating"
+  | "saving"
+  | "done"
+  | "error";
 
 function SubmitPage() {
   const navigate = useNavigate();
   const { address, connect } = useWallet();
   const submit = useServerFn(submitTest);
+  const fetchContractAddress = useServerFn(getContractAddressFn);
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [download, setDownload] = useState("");
@@ -131,10 +142,30 @@ function SubmitPage() {
       return;
     }
 
-    setPhase("submitting");
-    // Show "Validating via NetPulse network" after a brief delay
-    timerRef.current = window.setTimeout(() => setPhase("validating"), 600);
     try {
+      // 1) Ask the server which contract address to call.
+      const { address: contractAddress } = await fetchContractAddress();
+
+      let txHash: string | undefined;
+
+      if (contractAddress) {
+        // 2) User signs + pays gas in their wallet (MetaMask popup).
+        setPhase("signing");
+        const chainRes = await submitOnChain(contractAddress as `0x${string}`, {
+          wallet: address as `0x${string}`,
+          area_id: areaIdFor(coords.lat, coords.lng),
+          download: dl,
+          upload: ul,
+          latency: lat,
+          isp,
+          timestamp: Math.floor(Date.now() / 1000),
+        });
+        txHash = chainRes.tx_hash;
+        setPhase("validating");
+      }
+
+      // 3) Server verifies the tx on-chain (or runs local fallback) + persists.
+      setPhase((p) => (p === "validating" ? p : "saving"));
       const res = await submit({
         data: {
           wallet: address,
@@ -144,14 +175,13 @@ function SubmitPage() {
           isp,
           lat: coords.lat,
           lng: coords.lng,
+          ...(txHash ? { tx_hash: txHash } : {}),
         },
       });
-      if (timerRef.current) clearTimeout(timerRef.current);
       setResult(res);
       setPhase("done");
     } catch (err: any) {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      setError(err?.message ?? "Submission failed");
+      setError(err?.shortMessage ?? err?.message ?? "Submission failed");
       setPhase("error");
     }
   }
@@ -230,14 +260,23 @@ function SubmitPage() {
           </div>
         )}
 
-        <Button type="submit" size="lg" className="w-full gap-2 bg-gradient-primary shadow-glow transition-transform hover:scale-[1.02]" disabled={phase === "submitting" || phase === "validating"}>
-          {(phase === "submitting" || phase === "validating") && <Loader2 className="h-4 w-4 animate-spin" />}
+        <Button
+          type="submit"
+          size="lg"
+          className="w-full gap-2 bg-gradient-primary shadow-glow transition-transform hover:scale-[1.02]"
+          disabled={phase === "signing" || phase === "validating" || phase === "saving"}
+        >
+          {(phase === "signing" || phase === "validating" || phase === "saving") && (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          )}
           {!address
             ? "Connect wallet to submit"
-            : phase === "submitting"
-            ? "Submitting…"
+            : phase === "signing"
+            ? "Approve in your wallet…"
             : phase === "validating"
-            ? "Validating via NetPulse network…"
+            ? "Validating on GenLayer…"
+            : phase === "saving"
+            ? "Saving…"
             : "Submit to NetPulse"}
         </Button>
       </form>
