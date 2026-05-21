@@ -150,7 +150,7 @@ function SubmitPage() {
       if (contractAddress) {
         // 2) User signs + pays gas in their wallet (MetaMask popup).
         setPhase("signing");
-        const { submitOnChain } = await import("@/lib/genlayer.client");
+        const { submitOnChain } = await import("@/lib/genlayer-wallet");
         const chainRes = await submitOnChain(contractAddress as `0x${string}`, {
           wallet: address as `0x${string}`,
           area_id: areaIdFor(coords.lat, coords.lng),
