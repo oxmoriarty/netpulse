@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { useWallet } from "@/store/wallet";
 import { ISPS } from "@/lib/netpulse";
 import { submitTest, getContractAddressFn } from "@/server/netpulse.functions";
-import { submitOnChain } from "@/lib/genlayer.client";
 import { areaIdFor } from "@/lib/netpulse";
 import { useServerFn } from "@tanstack/react-start";
 
@@ -151,6 +150,7 @@ function SubmitPage() {
       if (contractAddress) {
         // 2) User signs + pays gas in their wallet (MetaMask popup).
         setPhase("signing");
+        const { submitOnChain } = await import("@/lib/genlayer.client");
         const chainRes = await submitOnChain(contractAddress as `0x${string}`, {
           wallet: address as `0x${string}`,
           area_id: areaIdFor(coords.lat, coords.lng),
