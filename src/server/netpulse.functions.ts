@@ -111,7 +111,10 @@ export const submitTest = createServerFn({ method: "POST" })
         avg_latency: 0,
         isp_breakdown: {},
       });
-      if (areaInitErr) throw new Error(areaInitErr.message);
+      if (areaInitErr) {
+        console.error("area_scores insert failed:", areaInitErr);
+        throw new Error("Failed to save submission");
+      }
     }
 
     const { error: insertErr } = await supabaseAdmin.from("submissions").insert({
@@ -126,7 +129,10 @@ export const submitTest = createServerFn({ method: "POST" })
       score,
       genlayer_tx_hash: result.tx_hash ?? null,
     });
-    if (insertErr) throw new Error(insertErr.message);
+    if (insertErr) {
+      console.error("submissions insert failed:", insertErr);
+      throw new Error("Failed to save submission");
+    }
 
     const { data: all } = await supabaseAdmin
       .from("submissions")
@@ -186,7 +192,10 @@ export const getMapData = createServerFn({ method: "GET" }).handler(async () => 
     .select("area_id, name, lat, lng, netpulse_score, sample_count")
     .order("updated_at", { ascending: false })
     .limit(500);
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error("getMapData query failed:", error);
+    throw new Error("Failed to load map data");
+  }
   return { areas: data ?? [] };
 });
 
