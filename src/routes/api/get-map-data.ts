@@ -11,7 +11,8 @@ export const Route = createFileRoute("/api/get-map-data")({
           .order("updated_at", { ascending: false })
           .limit(500);
         if (error) {
-          return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+          console.error("get-map-data query failed:", error);
+          return new Response(JSON.stringify({ error: "Failed to load map data" }), { status: 500 });
         }
         return Response.json({ areas: data ?? [] });
       },
