@@ -105,15 +105,18 @@ function SubmitPage() {
     try {
       const payload = new Uint8Array(1_000_000);
       const t0 = performance.now();
-      await fetch("https://speed.cloudflare.com/__up", {
+      await fetch(`https://speed.cloudflare.com/__up?bytes=${payload.byteLength}&_=${Date.now()}`, {
         method: "POST",
         body: payload,
       });
-      const seconds = (performance.now() - t0) / 1000;
+      const seconds = Math.max((performance.now() - t0) / 1000, 0.05);
       ulMbps = (payload.byteLength * 8) / 1_000_000 / seconds;
     } catch {
       ulMbps = 0;
     }
+    // Clamp to the contract's accepted range (0 < x < 10000)
+    dlMbps = Math.min(Math.max(dlMbps, 0.01), 9999);
+    ulMbps = Math.min(Math.max(ulMbps, 0.01), 9999);
     setProgress(100);
 
     setDownload(dlMbps.toFixed(2));
@@ -133,11 +136,17 @@ function SubmitPage() {
       setError("Location not available — allow location access.");
       return;
     }
-    const dl = parseFloat(download);
-    const ul = parseFloat(upload);
-    const lat = parseFloat(latency);
+    // Normalize comma decimals (locale-dependent mobile keyboards)
+    const norm = (s: string) => s.replace(",", ".").trim();
+    const dl = parseFloat(norm(download));
+    const ul = parseFloat(norm(upload));
+    const lat = parseFloat(norm(latency));
     if (!isFinite(dl) || !isFinite(ul) || !isFinite(lat) || dl <= 0 || ul <= 0 || lat <= 0) {
       setError("Enter valid speed and latency values.");
+      return;
+    }
+    if (dl >= 10000 || ul >= 10000 || lat >= 5000) {
+      setError("Values out of range (download/upload < 10000 Mbps, latency < 5000 ms).");
       return;
     }
 
