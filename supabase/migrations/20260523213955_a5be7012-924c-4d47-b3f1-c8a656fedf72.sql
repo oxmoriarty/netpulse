@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "public read submissions" ON public.submissions;
