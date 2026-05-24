@@ -8,8 +8,9 @@
  *   2. Falls back to a local validator (mirrors the contract) when no
  *      GENLAYER_CONTRACT_ADDRESS is configured.
  */
-import { createClient } from "genlayer-js";
+import { abi, createClient } from "genlayer-js";
 import { testnetBradbury } from "genlayer-js/chains";
+import { ExecutionResult, TransactionStatus } from "genlayer-js/types";
 import { computeScore } from "@/lib/netpulse";
 
 const SPAM_WINDOW_SECONDS = 60;
@@ -83,8 +84,22 @@ export async function verifyTxOnChain(
 
   const receipt: any = await client.waitForTransactionReceipt({
     hash: txHash as `0x${string}`,
-    retries: 100,
+    status: TransactionStatus.FINALIZED,
+    retries: 140,
   });
+
+  if (
+    receipt?.txExecutionResultName === ExecutionResult.FINISHED_WITH_ERROR ||
+    receipt?.txExecutionResult === 2
+  ) {
+    return { approved: false, reason: "Transaction reverted." };
+  }
+  if (
+    receipt?.txExecutionResultName === ExecutionResult.NOT_VOTED ||
+    receipt?.txExecutionResult === 0
+  ) {
+    throw new Error("Transaction has not produced an execution result yet");
+  }
 
   // Make sure this tx actually targets our contract.
   const to: string | undefined =
@@ -98,18 +113,30 @@ export async function verifyTxOnChain(
     );
   }
 
-  const parsed = extractContractResult(receipt);
+  let parsed = extractContractResult(receipt);
+  let trace: any = null;
+  if (!parsed && typeof client.debugTraceTransaction === "function") {
+    try {
+      trace = await client.debugTraceTransaction({ hash: txHash as `0x${string}` });
+      parsed = extractContractResult(trace);
+      if (!parsed && Number(trace?.result_code) > 0) {
+        return { approved: false, reason: "Transaction reverted." };
+      }
+    } catch (traceErr) {
+      console.error("Could not read GenLayer debug trace:", safeStringify(traceErr));
+    }
+  }
   if (!parsed) {
     console.error(
       "Could not decode contract result from receipt:",
-      JSON.stringify(receipt).slice(0, 2000),
+      safeStringify({ receipt, trace }).slice(0, 2000),
     );
     throw new Error("Could not decode contract result");
   }
 
   return {
-    approved: !!parsed.approved,
-    reason: parsed.reason,
+    approved: parsed.approved === true,
+    reason: parsed.reason ?? (parsed.approved === true ? undefined : "Rejected by GenLayer validators."),
     score: parsed.score,
     area_score: parsed.area_score,
     sample_count: parsed.sample_count,
