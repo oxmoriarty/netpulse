@@ -80,6 +80,18 @@ export function getContractAddress(): string | null {
   return addr && addr.startsWith("0x") ? addr : null;
 }
 
+function getTargetAddress(receipt: GenLayerTransaction): string | undefined {
+  return receipt.recipient ?? receipt.to_address ?? receipt.txDataDecoded?.contractAddress;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function readNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
 /**
  * Look up a user-signed transaction on Bradbury, confirm it called the
  * NetPulse contract, and parse the contract's JSON return value.
