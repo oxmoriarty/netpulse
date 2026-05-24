@@ -11,7 +11,7 @@
 import { abi, createClient } from "genlayer-js";
 import { testnetBradbury } from "genlayer-js/chains";
 import { ExecutionResult, TransactionStatus } from "genlayer-js/types";
-import type { DebugTraceResult, GenLayerTransaction } from "genlayer-js/types";
+import type { DebugTraceResult, GenLayerTransaction, Hash } from "genlayer-js/types";
 import { computeScore } from "@/lib/netpulse";
 
 const SPAM_WINDOW_SECONDS = 60;
@@ -89,9 +89,10 @@ export async function verifyTxOnChain(
   contractAddress: string,
 ): Promise<ValidationResult> {
   const client = createClient({ chain: testnetBradbury });
+  const hash = txHash as Hash;
 
   const receipt: GenLayerTransaction = await client.waitForTransactionReceipt({
-    hash: txHash as `0x${string}`,
+    hash,
     status: TransactionStatus.FINALIZED,
     retries: 140,
   });
@@ -119,7 +120,7 @@ export async function verifyTxOnChain(
   let trace: DebugTraceResult | null = null;
   if (!parsed && typeof client.debugTraceTransaction === "function") {
     try {
-      trace = await client.debugTraceTransaction({ hash: txHash as `0x${string}` });
+      trace = await client.debugTraceTransaction({ hash });
       parsed = extractContractResult(trace);
       if (!parsed && Number(trace?.result_code) > 0) {
         return { approved: false, reason: "Transaction reverted." };
