@@ -188,24 +188,58 @@ function tryParse(v: any): any | null {
   const s = v.trim();
   if (!s) return null;
 
-  // direct JSON
-  if (s.startsWith("{")) {
-    try { return JSON.parse(s); } catch { /* fall through */ }
+  // direct JSON, including JSON strings that contain the contract JSON
+  if (s.startsWith("{") || s.startsWith('"')) {
+    const parsed = parseJsonCandidate(s);
+    if (parsed) return parsed;
   }
-  // hex-encoded UTF-8
+  // hex-encoded GenLayer return envelope or UTF-8 JSON
   if (/^0x[0-9a-fA-F]+$/.test(s) && s.length > 4) {
     try {
       const bytes = Buffer.from(s.slice(2), "hex");
+      const envelope = parseGenLayerReturnBytes(bytes);
+      if (envelope) return envelope;
       const txt = bytes.toString("utf8");
-      if (txt.includes("approved")) return JSON.parse(txt);
+      if (txt.includes("approved")) return parseJsonCandidate(txt);
     } catch { /* fall through */ }
   }
-  // base64-encoded JSON
+  // base64-encoded GenLayer return envelope or JSON
   if (/^[A-Za-z0-9+/=]+$/.test(s) && s.length % 4 === 0 && s.length > 8) {
     try {
-      const txt = Buffer.from(s, "base64").toString("utf8");
-      if (txt.includes("approved")) return JSON.parse(txt);
+      const bytes = Buffer.from(s, "base64");
+      const envelope = parseGenLayerReturnBytes(bytes);
+      if (envelope) return envelope;
+      const txt = bytes.toString("utf8");
+      if (txt.includes("approved")) return parseJsonCandidate(txt);
     } catch { /* fall through */ }
   }
   return null;
+}
+
+function parseJsonCandidate(value: string): any | null {
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && typeof parsed === "object" && "approved" in parsed) return parsed;
+    if (typeof parsed === "string" && parsed.trim().startsWith("{")) {
+      const nested = JSON.parse(parsed);
+      if (nested && typeof nested === "object" && "approved" in nested) return nested;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+function parseGenLayerReturnBytes(bytes: Buffer): any | null {
+  if (bytes.length < 2 || bytes[0] !== 0) return null;
+  try {
+    const decoded = abi.calldata.decode(bytes.subarray(1));
+    if (typeof decoded === "string") return parseJsonCandidate(decoded);
+    if (decoded && typeof decoded === "object" && "approved" in decoded) return decoded;
+  } catch { /* ignore */ }
+  return null;
+}
+
+function safeStringify(value: unknown): string {
+  return JSON.stringify(value, (_key, item) =>
+    typeof item === "bigint" ? item.toString() : item,
+  );
 }
