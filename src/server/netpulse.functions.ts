@@ -71,21 +71,19 @@ export const submitTest = createServerFn({ method: "POST" })
       // Verify the user-signed transaction against the deployed contract.
       try {
         const onChain = await verifyTxOnChain(data.tx_hash, contractAddress);
-        if (onChain.approved) {
-          result = { ...onChain, tx_hash: data.tx_hash };
-          usedChain = true;
-        } else {
-          // On-chain rejected or reverted — fall back to local validator
-          // so the user still gets a meaningful result instead of a bare
-          // "rejected" error.
-          chainError = onChain.reason ?? "chain_rejected";
-          console.error("On-chain rejected, using local validator:", chainError);
-          result = await localValidate(input, history, areaAvg, areaCount);
-        }
+        result = { ...onChain, tx_hash: data.tx_hash };
+        usedChain = true;
       } catch (err) {
-        chainError = err instanceof Error ? err.message : String(err);
-        console.error("On-chain verification failed:", chainError);
-        result = await localValidate(input, history, areaAvg, areaCount);
+        const rawMsg = err instanceof Error ? err.message : String(err);
+        console.error("On-chain verification failed:", rawMsg);
+        // Surface only a generic message — never include tx hashes or
+        // contract addresses to the client. Do NOT fall back to the local
+        // validator: a reverted on-chain tx means the submission is rejected.
+        const reason = /revert/i.test(rawMsg)
+          ? "Transaction reverted."
+          : "On-chain verification failed.";
+        chainError = reason;
+        result = { approved: false, reason, tx_hash: data.tx_hash };
       }
     } else {
       // No tx — use the local validator (dev fallback only).
