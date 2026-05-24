@@ -8,8 +8,10 @@
  *   2. Falls back to a local validator (mirrors the contract) when no
  *      GENLAYER_CONTRACT_ADDRESS is configured.
  */
-import { createClient } from "genlayer-js";
+import { abi, createClient } from "genlayer-js";
 import { testnetBradbury } from "genlayer-js/chains";
+import { ExecutionResult, TransactionStatus } from "genlayer-js/types";
+import type { DebugTraceResult, GenLayerTransaction, Hash } from "genlayer-js/types";
 import { computeScore } from "@/lib/netpulse";
 
 const SPAM_WINDOW_SECONDS = 60;
@@ -34,6 +36,14 @@ export type ValidationResult = {
   tx_hash?: string | null;
 };
 
+type ContractResult = {
+  approved?: unknown;
+  reason?: unknown;
+  score?: unknown;
+  area_score?: unknown;
+  sample_count?: unknown;
+};
+
 function basicValid(d: number, u: number, l: number) {
   return d > 0 && d < 10000 && u > 0 && u < 10000 && l > 0 && l < 5000;
 }
@@ -51,8 +61,7 @@ export async function localValidate(
   const recent = history.find(
     (h) =>
       h.wallet.toLowerCase() === input.wallet.toLowerCase() &&
-      input.timestamp - new Date(h.created_at).getTime() / 1000 <
-        SPAM_WINDOW_SECONDS,
+      input.timestamp - new Date(h.created_at).getTime() / 1000 < SPAM_WINDOW_SECONDS,
   );
   if (recent) return { approved: false, reason: "spam_rate_limited" };
 
@@ -71,6 +80,20 @@ export function getContractAddress(): string | null {
   return addr && addr.startsWith("0x") ? addr : null;
 }
 
+function getTargetAddress(receipt: GenLayerTransaction): string | undefined {
+  const decoded = receipt.txDataDecoded;
+  const deployedTo = decoded && "contractAddress" in decoded ? decoded.contractAddress : undefined;
+  return receipt.recipient ?? receipt.to_address ?? deployedTo;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function readNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
 /**
  * Look up a user-signed transaction on Bradbury, confirm it called the
  * NetPulse contract, and parse the contract's JSON return value.
@@ -79,40 +102,63 @@ export async function verifyTxOnChain(
   txHash: string,
   contractAddress: string,
 ): Promise<ValidationResult> {
-  const client: any = createClient({ chain: testnetBradbury });
+  const client = createClient({ chain: testnetBradbury });
+  const hash = txHash as Hash;
 
-  const receipt: any = await client.waitForTransactionReceipt({
-    hash: txHash as `0x${string}`,
-    retries: 100,
+  const receipt: GenLayerTransaction = await client.waitForTransactionReceipt({
+    hash,
+    status: TransactionStatus.FINALIZED,
+    retries: 140,
   });
 
-  // Make sure this tx actually targets our contract.
-  const to: string | undefined =
-    receipt?.to ??
-    receipt?.tx_data?.to ??
-    receipt?.transaction?.to ??
-    undefined;
-  if (to && to.toLowerCase() !== contractAddress.toLowerCase()) {
-    throw new Error(
-      `Tx ${txHash} targets ${to}, not the NetPulse contract ${contractAddress}`,
-    );
+  if (
+    receipt?.txExecutionResultName === ExecutionResult.FINISHED_WITH_ERROR ||
+    receipt?.txExecutionResult === 2
+  ) {
+    return { approved: false, reason: "Transaction reverted." };
+  }
+  if (
+    receipt?.txExecutionResultName === ExecutionResult.NOT_VOTED ||
+    receipt?.txExecutionResult === 0
+  ) {
+    throw new Error("Transaction has not produced an execution result yet");
   }
 
-  const parsed = extractContractResult(receipt);
+  // Make sure this tx actually targets our contract.
+  const to = getTargetAddress(receipt);
+  if (to && to.toLowerCase() !== contractAddress.toLowerCase()) {
+    throw new Error(`Tx ${txHash} targets ${to}, not the NetPulse contract ${contractAddress}`);
+  }
+
+  let parsed = extractContractResult(receipt);
+  let trace: DebugTraceResult | null = null;
+  if (!parsed && typeof client.debugTraceTransaction === "function") {
+    try {
+      trace = await client.debugTraceTransaction({ hash });
+      parsed = extractContractResult(trace);
+      if (!parsed && Number(trace?.result_code) > 0) {
+        return { approved: false, reason: "Transaction reverted." };
+      }
+    } catch (traceErr) {
+      console.error("Could not read GenLayer debug trace:", safeStringify(traceErr));
+    }
+  }
   if (!parsed) {
     console.error(
       "Could not decode contract result from receipt:",
-      JSON.stringify(receipt).slice(0, 2000),
+      safeStringify({ receipt, trace }).slice(0, 2000),
     );
     throw new Error("Could not decode contract result");
   }
 
   return {
-    approved: !!parsed.approved,
-    reason: parsed.reason,
-    score: parsed.score,
-    area_score: parsed.area_score,
-    sample_count: parsed.sample_count,
+    approved: parsed.approved === true,
+    reason:
+      readString(parsed.reason) ??
+      (parsed.approved === true ? undefined : "Rejected by GenLayer validators."),
+    score: readNumber(parsed.score),
+    area_score: readNumber(parsed.area_score),
+    sample_count: readNumber(parsed.sample_count),
   };
 }
 
@@ -126,11 +172,11 @@ export async function verifyTxOnChain(
  *   - hex-encoded UTF-8 JSON
  * Walk the receipt and pull out the first parseable {"approved": ...} blob.
  */
-function extractContractResult(receipt: any): any | null {
-  const seen = new Set<any>();
-  const candidates: any[] = [];
+function extractContractResult(receipt: unknown): ContractResult | null {
+  const seen = new WeakSet<object>();
+  const candidates: unknown[] = [];
 
-  const walk = (node: any) => {
+  const walk = (node: unknown) => {
     if (node == null || seen.has(node)) return;
     if (typeof node === "object") {
       seen.add(node);
@@ -151,34 +197,74 @@ function extractContractResult(receipt: any): any | null {
   return null;
 }
 
-function tryParse(v: any): any | null {
+function tryParse(v: unknown): ContractResult | null {
   if (v == null) return null;
   if (typeof v === "object") {
-    if ("approved" in v) return v;
+    if ("approved" in v) return v as ContractResult;
     return null;
   }
   if (typeof v !== "string") return null;
   const s = v.trim();
   if (!s) return null;
 
-  // direct JSON
-  if (s.startsWith("{")) {
-    try { return JSON.parse(s); } catch { /* fall through */ }
+  // direct JSON, including JSON strings that contain the contract JSON
+  if (s.startsWith("{") || s.startsWith('"')) {
+    const parsed = parseJsonCandidate(s);
+    if (parsed) return parsed;
   }
-  // hex-encoded UTF-8
+  // hex-encoded GenLayer return envelope or UTF-8 JSON
   if (/^0x[0-9a-fA-F]+$/.test(s) && s.length > 4) {
     try {
       const bytes = Buffer.from(s.slice(2), "hex");
+      const envelope = parseGenLayerReturnBytes(bytes);
+      if (envelope) return envelope;
       const txt = bytes.toString("utf8");
-      if (txt.includes("approved")) return JSON.parse(txt);
-    } catch { /* fall through */ }
+      if (txt.includes("approved")) return parseJsonCandidate(txt);
+    } catch {
+      /* fall through */
+    }
   }
-  // base64-encoded JSON
+  // base64-encoded GenLayer return envelope or JSON
   if (/^[A-Za-z0-9+/=]+$/.test(s) && s.length % 4 === 0 && s.length > 8) {
     try {
-      const txt = Buffer.from(s, "base64").toString("utf8");
-      if (txt.includes("approved")) return JSON.parse(txt);
-    } catch { /* fall through */ }
+      const bytes = Buffer.from(s, "base64");
+      const envelope = parseGenLayerReturnBytes(bytes);
+      if (envelope) return envelope;
+      const txt = bytes.toString("utf8");
+      if (txt.includes("approved")) return parseJsonCandidate(txt);
+    } catch {
+      /* fall through */
+    }
   }
   return null;
+}
+
+function parseJsonCandidate(value: string): ContractResult | null {
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && typeof parsed === "object" && "approved" in parsed) return parsed;
+    if (typeof parsed === "string" && parsed.trim().startsWith("{")) {
+      const nested = JSON.parse(parsed);
+      if (nested && typeof nested === "object" && "approved" in nested) return nested;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function parseGenLayerReturnBytes(bytes: Buffer): ContractResult | null {
+  if (bytes.length < 2 || bytes[0] !== 0) return null;
+  try {
+    const decoded = abi.calldata.decode(bytes.subarray(1));
+    if (typeof decoded === "string") return parseJsonCandidate(decoded);
+    if (decoded && typeof decoded === "object" && "approved" in decoded) return decoded;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function safeStringify(value: unknown): string {
+  return JSON.stringify(value, (_key, item) => (typeof item === "bigint" ? item.toString() : item));
 }
