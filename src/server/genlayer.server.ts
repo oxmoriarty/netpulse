@@ -153,7 +153,9 @@ export async function verifyTxOnChain(
 
   return {
     approved: parsed.approved === true,
-    reason: readString(parsed.reason) ?? (parsed.approved === true ? undefined : "Rejected by GenLayer validators."),
+    reason:
+      readString(parsed.reason) ??
+      (parsed.approved === true ? undefined : "Rejected by GenLayer validators."),
     score: readNumber(parsed.score),
     area_score: readNumber(parsed.area_score),
     sample_count: readNumber(parsed.sample_count),
@@ -170,11 +172,11 @@ export async function verifyTxOnChain(
  *   - hex-encoded UTF-8 JSON
  * Walk the receipt and pull out the first parseable {"approved": ...} blob.
  */
-function extractContractResult(receipt: any): any | null {
-  const seen = new Set<any>();
-  const candidates: any[] = [];
+function extractContractResult(receipt: unknown): ContractResult | null {
+  const seen = new WeakSet<object>();
+  const candidates: unknown[] = [];
 
-  const walk = (node: any) => {
+  const walk = (node: unknown) => {
     if (node == null || seen.has(node)) return;
     if (typeof node === "object") {
       seen.add(node);
@@ -195,10 +197,10 @@ function extractContractResult(receipt: any): any | null {
   return null;
 }
 
-function tryParse(v: any): any | null {
+function tryParse(v: unknown): ContractResult | null {
   if (v == null) return null;
   if (typeof v === "object") {
-    if ("approved" in v) return v;
+    if ("approved" in v) return v as ContractResult;
     return null;
   }
   if (typeof v !== "string") return null;
