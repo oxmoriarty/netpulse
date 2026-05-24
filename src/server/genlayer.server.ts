@@ -220,7 +220,9 @@ function tryParse(v: unknown): ContractResult | null {
       if (envelope) return envelope;
       const txt = bytes.toString("utf8");
       if (txt.includes("approved")) return parseJsonCandidate(txt);
-    } catch { /* fall through */ }
+    } catch {
+      /* fall through */
+    }
   }
   // base64-encoded GenLayer return envelope or JSON
   if (/^[A-Za-z0-9+/=]+$/.test(s) && s.length % 4 === 0 && s.length > 8) {
@@ -230,12 +232,14 @@ function tryParse(v: unknown): ContractResult | null {
       if (envelope) return envelope;
       const txt = bytes.toString("utf8");
       if (txt.includes("approved")) return parseJsonCandidate(txt);
-    } catch { /* fall through */ }
+    } catch {
+      /* fall through */
+    }
   }
   return null;
 }
 
-function parseJsonCandidate(value: string): any | null {
+function parseJsonCandidate(value: string): ContractResult | null {
   try {
     const parsed = JSON.parse(value);
     if (parsed && typeof parsed === "object" && "approved" in parsed) return parsed;
@@ -243,22 +247,24 @@ function parseJsonCandidate(value: string): any | null {
       const nested = JSON.parse(parsed);
       if (nested && typeof nested === "object" && "approved" in nested) return nested;
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return null;
 }
 
-function parseGenLayerReturnBytes(bytes: Buffer): any | null {
+function parseGenLayerReturnBytes(bytes: Buffer): ContractResult | null {
   if (bytes.length < 2 || bytes[0] !== 0) return null;
   try {
     const decoded = abi.calldata.decode(bytes.subarray(1));
     if (typeof decoded === "string") return parseJsonCandidate(decoded);
     if (decoded && typeof decoded === "object" && "approved" in decoded) return decoded;
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return null;
 }
 
 function safeStringify(value: unknown): string {
-  return JSON.stringify(value, (_key, item) =>
-    typeof item === "bigint" ? item.toString() : item,
-  );
+  return JSON.stringify(value, (_key, item) => (typeof item === "bigint" ? item.toString() : item));
 }
