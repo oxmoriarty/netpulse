@@ -77,11 +77,13 @@ export const submitTest = createServerFn({ method: "POST" })
         const rawMsg = err instanceof Error ? err.message : String(err);
         console.error("On-chain verification failed:", rawMsg);
         // Surface only a generic message — never include tx hashes or
-        // contract addresses to the client.
-        chainError = /revert/i.test(rawMsg)
+        // contract addresses to the client. Do NOT fall back to the local
+        // validator: a reverted on-chain tx means the submission is rejected.
+        const reason = /revert/i.test(rawMsg)
           ? "Transaction reverted."
           : "On-chain verification failed.";
-        result = await localValidate(input, history, areaAvg, areaCount);
+        chainError = reason;
+        result = { approved: false, reason, tx_hash: data.tx_hash };
       }
     } else {
       // No tx — use the local validator (dev fallback only).
