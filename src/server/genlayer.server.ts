@@ -98,15 +98,13 @@ export async function verifyTxOnChain(
     );
   }
 
-  let parsed: any = {};
-  try {
-    const raw =
-      receipt?.consensus_data?.leader_receipt?.[0]?.result ??
-      receipt?.data?.result ??
-      "{}";
-    parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-  } catch {
-    parsed = {};
+  const parsed = extractContractResult(receipt);
+  if (!parsed) {
+    console.error(
+      "Could not decode contract result from receipt:",
+      JSON.stringify(receipt).slice(0, 2000),
+    );
+    throw new Error("Could not decode contract result");
   }
 
   return {
@@ -116,4 +114,71 @@ export async function verifyTxOnChain(
     area_score: parsed.area_score,
     sample_count: parsed.sample_count,
   };
+}
+
+/**
+ * The GenLayer receipt shape evolves across SDK versions and the contract
+ * returns a JSON string. The encoded result may appear as:
+ *   - a JSON string at leader_receipt[0].result
+ *   - { status, value } where value is the JSON string
+ *   - { Ok: <value> } / { result: { Ok: <value> } }
+ *   - base64-encoded JSON
+ *   - hex-encoded UTF-8 JSON
+ * Walk the receipt and pull out the first parseable {"approved": ...} blob.
+ */
+function extractContractResult(receipt: any): any | null {
+  const seen = new Set<any>();
+  const candidates: any[] = [];
+
+  const walk = (node: any) => {
+    if (node == null || seen.has(node)) return;
+    if (typeof node === "object") {
+      seen.add(node);
+      candidates.push(node);
+      for (const v of Object.values(node)) walk(v);
+    } else {
+      candidates.push(node);
+    }
+  };
+  walk(receipt);
+
+  for (const c of candidates) {
+    const obj = tryParse(c);
+    if (obj && typeof obj === "object" && "approved" in obj) {
+      return obj;
+    }
+  }
+  return null;
+}
+
+function tryParse(v: any): any | null {
+  if (v == null) return null;
+  if (typeof v === "object") {
+    if ("approved" in v) return v;
+    return null;
+  }
+  if (typeof v !== "string") return null;
+  const s = v.trim();
+  if (!s) return null;
+
+  // direct JSON
+  if (s.startsWith("{")) {
+    try { return JSON.parse(s); } catch { /* fall through */ }
+  }
+  // hex-encoded UTF-8
+  if (/^0x[0-9a-fA-F]+$/.test(s) && s.length > 4) {
+    try {
+      const bytes = Buffer.from(s.slice(2), "hex");
+      const txt = bytes.toString("utf8");
+      if (txt.includes("approved")) return JSON.parse(txt);
+    } catch { /* fall through */ }
+  }
+  // base64-encoded JSON
+  if (/^[A-Za-z0-9+/=]+$/.test(s) && s.length % 4 === 0 && s.length > 8) {
+    try {
+      const txt = Buffer.from(s, "base64").toString("utf8");
+      if (txt.includes("approved")) return JSON.parse(txt);
+    } catch { /* fall through */ }
+  }
+  return null;
 }
