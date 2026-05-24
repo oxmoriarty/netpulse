@@ -155,22 +155,31 @@ function SubmitPage() {
       const { address: contractAddress } = await fetchContractAddress();
 
       let txHash: string | undefined;
+      let chainFailed = false;
 
       if (contractAddress) {
         // 2) User signs + pays gas in their wallet (MetaMask popup).
         setPhase("signing");
-        const { submitOnChain } = await import("@/lib/genlayer-wallet");
-        const chainRes = await submitOnChain(contractAddress as `0x${string}`, {
-          wallet: address as `0x${string}`,
-          area_id: areaIdFor(coords.lat, coords.lng),
-          download: dl,
-          upload: ul,
-          latency: lat,
-          isp,
-          timestamp: Math.floor(Date.now() / 1000),
-        });
-        txHash = chainRes.tx_hash;
-        setPhase("validating");
+        try {
+          const { submitOnChain } = await import("@/lib/genlayer-wallet");
+          const chainRes = await submitOnChain(contractAddress as `0x${string}`, {
+            wallet: address as `0x${string}`,
+            area_id: areaIdFor(coords.lat, coords.lng),
+            download: dl,
+            upload: ul,
+            latency: lat,
+            isp,
+            timestamp: Math.floor(Date.now() / 1000),
+          });
+          txHash = chainRes.tx_hash;
+          setPhase("validating");
+        } catch (chainErr) {
+          // Wallet rejected, tx reverted, or network failure — log it and
+          // fall back to the server-side validator instead of surfacing the
+          // raw revert message to the user.
+          console.error("On-chain submit failed, falling back:", chainErr);
+          chainFailed = true;
+        }
       }
 
       // 3) Server verifies the tx on-chain (or runs local fallback) + persists.
@@ -190,7 +199,8 @@ function SubmitPage() {
       setResult(res);
       setPhase("done");
     } catch (err: any) {
-      setError(err?.shortMessage ?? err?.message ?? "Submission failed");
+      console.error("Submission error:", err);
+      setError("Submission failed. Please try again in a moment.");
       setPhase("error");
     }
   }
