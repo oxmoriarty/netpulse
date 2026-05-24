@@ -155,7 +155,6 @@ function SubmitPage() {
       const { address: contractAddress } = await fetchContractAddress();
 
       let txHash: string | undefined;
-      let chainFailed = false;
 
       if (contractAddress) {
         // 2) User signs + pays gas in their wallet (MetaMask popup).
@@ -178,7 +177,6 @@ function SubmitPage() {
           // fall back to the server-side validator instead of surfacing the
           // raw revert message to the user.
           console.error("On-chain submit failed, falling back:", chainErr);
-          chainFailed = true;
         }
       }
 
