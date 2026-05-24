@@ -81,7 +81,9 @@ export function getContractAddress(): string | null {
 }
 
 function getTargetAddress(receipt: GenLayerTransaction): string | undefined {
-  return receipt.recipient ?? receipt.to_address ?? receipt.txDataDecoded?.contractAddress;
+  const decoded = receipt.txDataDecoded;
+  const deployedTo = decoded && "contractAddress" in decoded ? decoded.contractAddress : undefined;
+  return receipt.recipient ?? receipt.to_address ?? deployedTo;
 }
 
 function readString(value: unknown): string | undefined {
