@@ -11,6 +11,7 @@
 import { abi, createClient } from "genlayer-js";
 import { testnetBradbury } from "genlayer-js/chains";
 import { ExecutionResult, TransactionStatus } from "genlayer-js/types";
+import type { DebugTraceResult, GenLayerTransaction } from "genlayer-js/types";
 import { computeScore } from "@/lib/netpulse";
 
 const SPAM_WINDOW_SECONDS = 60;
@@ -35,6 +36,14 @@ export type ValidationResult = {
   tx_hash?: string | null;
 };
 
+type ContractResult = {
+  approved?: unknown;
+  reason?: unknown;
+  score?: unknown;
+  area_score?: unknown;
+  sample_count?: unknown;
+};
+
 function basicValid(d: number, u: number, l: number) {
   return d > 0 && d < 10000 && u > 0 && u < 10000 && l > 0 && l < 5000;
 }
@@ -52,8 +61,7 @@ export async function localValidate(
   const recent = history.find(
     (h) =>
       h.wallet.toLowerCase() === input.wallet.toLowerCase() &&
-      input.timestamp - new Date(h.created_at).getTime() / 1000 <
-        SPAM_WINDOW_SECONDS,
+      input.timestamp - new Date(h.created_at).getTime() / 1000 < SPAM_WINDOW_SECONDS,
   );
   if (recent) return { approved: false, reason: "spam_rate_limited" };
 
@@ -80,9 +88,9 @@ export async function verifyTxOnChain(
   txHash: string,
   contractAddress: string,
 ): Promise<ValidationResult> {
-  const client: any = createClient({ chain: testnetBradbury });
+  const client = createClient({ chain: testnetBradbury });
 
-  const receipt: any = await client.waitForTransactionReceipt({
+  const receipt: GenLayerTransaction = await client.waitForTransactionReceipt({
     hash: txHash as `0x${string}`,
     status: TransactionStatus.FINALIZED,
     retries: 140,
@@ -102,19 +110,13 @@ export async function verifyTxOnChain(
   }
 
   // Make sure this tx actually targets our contract.
-  const to: string | undefined =
-    receipt?.to ??
-    receipt?.tx_data?.to ??
-    receipt?.transaction?.to ??
-    undefined;
+  const to = getTargetAddress(receipt);
   if (to && to.toLowerCase() !== contractAddress.toLowerCase()) {
-    throw new Error(
-      `Tx ${txHash} targets ${to}, not the NetPulse contract ${contractAddress}`,
-    );
+    throw new Error(`Tx ${txHash} targets ${to}, not the NetPulse contract ${contractAddress}`);
   }
 
   let parsed = extractContractResult(receipt);
-  let trace: any = null;
+  let trace: DebugTraceResult | null = null;
   if (!parsed && typeof client.debugTraceTransaction === "function") {
     try {
       trace = await client.debugTraceTransaction({ hash: txHash as `0x${string}` });
@@ -136,10 +138,10 @@ export async function verifyTxOnChain(
 
   return {
     approved: parsed.approved === true,
-    reason: parsed.reason ?? (parsed.approved === true ? undefined : "Rejected by GenLayer validators."),
-    score: parsed.score,
-    area_score: parsed.area_score,
-    sample_count: parsed.sample_count,
+    reason: readString(parsed.reason) ?? (parsed.approved === true ? undefined : "Rejected by GenLayer validators."),
+    score: readNumber(parsed.score),
+    area_score: readNumber(parsed.area_score),
+    sample_count: readNumber(parsed.sample_count),
   };
 }
 
